@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -105,7 +106,7 @@ public partial class Kernel32Facts
         string testPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         using (var tempFileHandle = CreateFile(
             testPath,
-            Kernel32.FileAccess.GENERIC_WRITE,
+            ACCESS_MASK.GenericRight.GENERIC_WRITE,
             Kernel32.FileShare.FILE_SHARE_READ,
             IntPtr.Zero,
             CreationDisposition.CREATE_ALWAYS,
@@ -164,6 +165,7 @@ public partial class Kernel32Facts
     }
 
     [Fact]
+    [UseCulture("en-US")]
     public void FormatMessage_NTStatus()
     {
         using (var ntdll = LoadLibrary("ntdll.dll"))
@@ -172,7 +174,11 @@ public partial class Kernel32Facts
                 FormatMessageFlags.FORMAT_MESSAGE_FROM_HMODULE,
                 ntdll.DangerousGetHandle(),
                 (int)NTSTATUS.Code.DBG_REPLY_LATER,
+#if DESKTOP
+                CultureInfo.CurrentCulture.LCID,
+#else
                 0,
+#endif
                 null,
                 500);
             Assert.Equal("Debugger will reply later", actual);
@@ -269,7 +275,7 @@ public partial class Kernel32Facts
 
             using (var file = CreateFile(
                 testPath,
-                Kernel32.FileAccess.GENERIC_READ,
+                ACCESS_MASK.GenericRight.GENERIC_READ,
                 Kernel32.FileShare.None,
                 IntPtr.Zero,
                 CreationDisposition.OPEN_EXISTING,
@@ -301,7 +307,7 @@ public partial class Kernel32Facts
 
             using (var file = CreateFile(
                 testPath,
-                Kernel32.FileAccess.GENERIC_READ,
+                ACCESS_MASK.GenericRight.GENERIC_READ,
                 Kernel32.FileShare.None,
                 (SECURITY_ATTRIBUTES?)null,
                 CreationDisposition.OPEN_EXISTING,
@@ -350,7 +356,7 @@ public partial class Kernel32Facts
 
             using (var file = CreateFile(
                 testPath,
-                Kernel32.FileAccess.GENERIC_READ,
+                ACCESS_MASK.GenericRight.GENERIC_READ,
                 Kernel32.FileShare.None,
                 (SECURITY_ATTRIBUTES?)null,
                 CreationDisposition.OPEN_EXISTING,
@@ -400,7 +406,7 @@ public partial class Kernel32Facts
 
             using (var file = CreateFile(
                 testPath,
-                Kernel32.FileAccess.GENERIC_WRITE,
+                ACCESS_MASK.GenericRight.GENERIC_WRITE,
                 Kernel32.FileShare.None,
                 IntPtr.Zero,
                 CreationDisposition.OPEN_EXISTING,
@@ -433,7 +439,7 @@ public partial class Kernel32Facts
 
             using (var file = CreateFile(
                 testPath,
-                Kernel32.FileAccess.GENERIC_WRITE,
+                ACCESS_MASK.GenericRight.GENERIC_WRITE,
                 Kernel32.FileShare.None,
                 (SECURITY_ATTRIBUTES?)null,
                 CreationDisposition.OPEN_EXISTING,
@@ -481,7 +487,7 @@ public partial class Kernel32Facts
 
             using (var file = CreateFile(
                 testPath,
-                Kernel32.FileAccess.GENERIC_WRITE,
+                ACCESS_MASK.GenericRight.GENERIC_WRITE,
                 Kernel32.FileShare.None,
                 (SECURITY_ATTRIBUTES?)null,
                 CreationDisposition.OPEN_EXISTING,
@@ -531,7 +537,7 @@ public partial class Kernel32Facts
 
             using (var file = CreateFile(
                 testPath,
-                Kernel32.FileAccess.GENERIC_WRITE,
+                ACCESS_MASK.GenericRight.GENERIC_WRITE,
                 Kernel32.FileShare.None,
                 (SECURITY_ATTRIBUTES?)null,
                 CreationDisposition.OPEN_EXISTING,
@@ -579,7 +585,7 @@ public partial class Kernel32Facts
 
             using (var file = CreateFile(
                 testPath,
-                Kernel32.FileAccess.GENERIC_WRITE,
+                ACCESS_MASK.GenericRight.GENERIC_WRITE,
                 Kernel32.FileShare.None,
                 (SECURITY_ATTRIBUTES?)null,
                 CreationDisposition.OPEN_EXISTING,
@@ -633,7 +639,7 @@ public partial class Kernel32Facts
 
             using (var file = CreateFile(
                 testPath,
-                Kernel32.FileAccess.GENERIC_WRITE,
+                ACCESS_MASK.GenericRight.GENERIC_WRITE,
                 Kernel32.FileShare.None,
                 (SECURITY_ATTRIBUTES?)null,
                 CreationDisposition.OPEN_EXISTING,
@@ -753,7 +759,7 @@ public partial class Kernel32Facts
 
                 var client = CreateFile(
                     pipeName,
-                    Kernel32.FileAccess.GENERIC_READ | Kernel32.FileAccess.FILE_GENERIC_WRITE,
+                    (uint)ACCESS_MASK.GenericRight.GENERIC_READ | (uint)Kernel32.FileAccess.FILE_GENERIC_WRITE,
                     Kernel32.FileShare.None,
                     (SECURITY_ATTRIBUTES?)null,
                     CreationDisposition.OPEN_EXISTING,
@@ -852,6 +858,57 @@ public partial class Kernel32Facts
             // The icon for .bmp files
             Assert.Contains(1, intResources);
         }
+    }
+
+    [Fact]
+    public unsafe void Enumerate_Resource_Languages()
+    {
+        using (var imageRes = LoadLibrary("shell32.dll"))
+        {
+            Assert.False(imageRes.IsInvalid);
+
+            // Get bitmap resource IDs.
+            List<int> intResources = new List<int>();
+            EnumResNameProc onResourceFound = (module, type, name, lparam) =>
+            {
+                if (IS_INTRESOURCE(name))
+                {
+                    intResources.Add((int)name);
+                }
+
+                return true;
+            };
+
+            Assert.True(EnumResourceNames(imageRes, RT_BITMAP, onResourceFound, IntPtr.Zero));
+            Assert.NotEmpty(intResources);
+
+            // Get resource languages for bitmap resources.
+            List<LANGID> resourceLanguages = new List<LANGID>();
+            EnumResLangProc onResourceLanguageFound = (module, type, name, language, lParam) =>
+            {
+                if (IS_INTRESOURCE(name))
+                {
+                    resourceLanguages.Add(language);
+                }
+
+                return true;
+            };
+
+            Assert.True(EnumResourceLanguages(imageRes, RT_BITMAP, MAKEINTRESOURCE(intResources.First()), onResourceLanguageFound, (void*)IntPtr.Zero), GetLastError().ToString());
+            Assert.NotEmpty(resourceLanguages);
+        }
+    }
+
+    [Fact]
+    public void SetThreadExectionState_Simple()
+    {
+        Assert.NotEqual(EXECUTION_STATE.None, SetThreadExecutionState(EXECUTION_STATE.ES_SYSTEM_REQUIRED));
+    }
+
+    [Fact]
+    public void MAKELANGID_Simple()
+    {
+        Assert.Equal(0x0409, MAKELANGID(LANGID.PrimaryLanguage.LANG_ENGLISH, LANGID.SubLanguage.SUBLANG_ENGLISH_US).Data);
     }
 
     private ArraySegment<byte> GetRandomSegment(int size)

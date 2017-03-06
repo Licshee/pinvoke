@@ -10,8 +10,8 @@ Param(
 	[string]$Configuration='release'
 )
 
-nuget restore "$PSScriptRoot\..\src"
-msbuild "$PSScriptRoot\..\src\PInvoke.sln" /p:configuration=$Configuration /p:GeneratePInvokesTxt=true
+nuget restore "$PSScriptRoot\..\src" -Verbosity quiet
+msbuild /nologo /m /v:minimal /fl "$PSScriptRoot\..\src\PInvoke.sln" /p:configuration=$Configuration /p:GeneratePInvokesTxt=true
 
 $Shields = & "$PSScriptRoot\Get-Shields.ps1" -Directory "$PSScriptRoot\..\bin\$Configuration"
 $CoveragePath = Resolve-Path "$PSScriptRoot\..\coverage.md"

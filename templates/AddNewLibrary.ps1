@@ -51,9 +51,18 @@ function Replace-Placeholders {
 
 $Src = Resolve-Path "$PSScriptRoot\..\src"
 
-$Directories = 'LIBNAME','LIBNAME.Desktop','LIBNAME.Shared','LIBNAME.Tests','LIBNAME.NuGet'
-$TemplateDirectories = $Directories |% { "$PSScriptRoot\$_" }
-$SrcDirectories = $Directories |% { "$Src\$_" }
+$Directories = 'LIBNAME','LIBNAME.Profile111','LIBNAME.Desktop','LIBNAME.Shared','LIBNAME.Tests','LIBNAME.NuGet'
+$TemplateDirectories = @()
+$SrcDirectories = @()
+foreach($dir in $Directories) {
+    $SrcDirectory = "$Src\$dir"
+    $TemplateDirectory = "$PSScriptRoot\$dir"
+    $SrcDirectory_Substituted = $SrcDirectory.Replace('LIBNAME', $LibraryName)
+    If (-not (Test-Path $SrcDirectory_Substituted)) {
+        $TemplateDirectories += $TemplateDirectory
+        $SrcDirectories += $SrcDirectory
+    }
+}
 
 $Replacements = @{
     '\$guid1\$' = [Guid]::NewGuid().ToString('b').ToUpper();
@@ -61,6 +70,7 @@ $Replacements = @{
     '\$guid3\$' = [Guid]::NewGuid().ToString('b').ToUpper();
     '\$guid4\$' = [Guid]::NewGuid().ToString('b').ToUpper();
     '\$guid5\$' = [Guid]::NewGuid().ToString('b').ToUpper();
+    '\$guid6\$' = [Guid]::NewGuid().ToString('b').ToUpper();
     'LIBNAME' = $LibraryName;
 }
 
@@ -72,6 +82,7 @@ $SrcDirectories |% { Replace-Placeholders -LibraryName $LibraryName -Replacement
 Write-Output "Great. Your new projects have been created. Please also perform a few more manual steps:"
 Write-Output "1. Add these new projects to your solution file:"
 Write-Output "    $Src\$LibraryName\$LibraryName.csproj"
+Write-Output "    $Src\$LibraryName.Profile111\$LibraryName.Profile111.csproj"
 Write-Output "    $Src\$LibraryName.Desktop\$LibraryName.Desktop.csproj"
 Write-Output "    $Src\$LibraryName.Shared\$LibraryName.Shared.shproj"
 Write-Output "    $Src\$LibraryName.Tests\$LibraryName.Tests.csproj"

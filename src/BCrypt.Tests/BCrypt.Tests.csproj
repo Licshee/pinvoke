@@ -35,9 +35,9 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\BCrypt\BCrypt.csproj">
-      <Project>{9CE056E3-5D53-4092-97CC-78826A4D1C14}</Project>
-      <Name>BCrypt</Name>
+    <ProjectReference Include="..\BCrypt.Desktop\BCrypt.Desktop.csproj">
+      <Project>{FD0FF0EC-1EA9-40CB-B8E0-4491E43185F7}</Project>
+      <Name>BCrypt.Desktop</Name>
     </ProjectReference>
     <ProjectReference Include="..\Kernel32.Desktop\Kernel32.Desktop.csproj">
       <Project>{18ba8c60-9a63-4eea-bb5c-c9899d86f5b8}</Project>

@@ -4,7 +4,54 @@ Contributing
 There are many thousands of Win32 APIs and this library is not complete.
 Please send pull requests to add what you've come up with.
 
+## Prerequisites
+
+### Required
+
+* [Microsoft Build Tools 2015](https://www.microsoft.com/en-us/download/details.aspx?id=48159) (automatically installed with Visual Studio 2015)
+
+### Better with
+
+* [Visual Studio 2015](https://www.visualstudio.com/en-us)
+* [NuProj](http://nuproj.net) extension for Visual Studio
+
 ## Guidelines
+
+### Important notice when developing with Visual Studio
+
+The NuGet package restore functionality in Visual Studio does not work for this project, which relies
+on newer functionality than comes with Visual Studio 2015 Update 3. You should disable automatic
+package restore on build in Visual Studio in order to build successfully and have a useful Error List
+while developing.
+
+Follow these steps to disable automatic package restore in Visual Studio:
+
+1. Tools -> Options -> NuGet Package Manager -> General
+2. *Clear* the checkbox for "Automatically check for missing packages during build in Visual Studio
+
+With this setting, you can still execute a package restore within Visual Studio by right-clicking
+on the _solution_ node in Solution Explorer and clicking "Restore NuGet Packages". But do not ever
+execute that on this project as that will corrupt the result of `build.ps1 -restore`.
+
+Before developing this project in Visual Studio, or after making project or project.json changes,
+or to recover after Visual Studio executes a package restore, run this command, which is defined
+at the root of the repo, from the Visual Studio Developer Command Prompt:
+
+```
+.\build -Restore
+```
+
+### Frequently Asked Questions
+
+#### Can p/invoke signatures and docs found on pinvoke.net be copied into this project?
+
+[The license found on pinvoke.net](http://www.pinvoke.net/termsofuse.htm#3.4) for its code grants users:
+
+> a licence to copy, use, adapt, modify or distribute that source code as they see fit, provided that the source code may not be used in any unlawful, defamatory, obscene, offensive or discriminatory way.
+
+I'm not a lawyer, but I read that to mean contributing the code to an MIT licensed project such as
+this one would be permissible. In addition, folks on pinvoke.net did not invent the method signatures
+in the first place, as they are a work of the author of the original library being P/Invoked into.
 
 ### Learn how to write P/Invoke signatures
 
@@ -24,9 +71,20 @@ in this document.
  * Types, enums, and constants defined in common Windows header files should be defined
    in the PInvoke.Windows.Core project.
 
-When introducing support for a new native DLL to this project, use the templates\AddNewLibrary.ps1
+When introducing support for a new native DLL to this project, use the `templates\AddNewLibrary.ps1`
 Powershell cmdlet to create the projects necessary to support it and follow the instructions from that script.
-The library should also be added to the list on the [readme](README.md).
+
+Sometimes it might be needed to add libraries to share types and structures among high-level API sets.
+When that happens you should use the `templates\AddNewCoreLibrary.ps1` Powershell cmdlet to create a core library.
+
+A Core Library in PInvoke project wording is a library that only contains enums and structures, no functions, classes or methods.
+These libraries are not backed by DLLs, instead they are based on C/C++ header files (.h files). They are meant to be used
+when enums and structures must be shared among other high level projects, like PInvoke.SHCore and PInvoke.User32
+share types using Windows.ShellScalingApi.
+
+Core Libraries should be named after their C/C++ header file names like ShellScalingApi.h
+
+The high-level libraries should also be added to the list on the [readme](README.md).
 
 ### Win32 API Sets
 
@@ -96,6 +154,22 @@ anything else found in native header files for these reasons:
    to the code generator producing `struct?`, `ref struct`, or `ref struct?` overloads for that parameter.
  * Prefer `enum` types over `int` or `uint` for flags. Generally, name flags enums as `METHODNAMEFlags`.
    For example: `CreateFileFlags` for the flags that are passed to `CreateFile`.
+ * Use `IntPtr` for integers that change size based on process architecture (32-bit vs. 64-bit).
+   Use `int` or `long` for integers that are always either 32-bit or 64-bit (respectively).
+   All PInvoke assemblies are architecture neutral, so we rely on `IntPtr` to accomodate the size of integer
+   types that vary with architecture. An [exhaustive list of equivalent types are available on MSDN](https://msdn.microsoft.com/en-us/library/windows/desktop/aa383751).
+   Some helpful translations are included in the following table:
+
+| C/C++ type  | C# type  |
+| ----------- | -------- |
+| `int`       | `int`    |
+| `long`      | `int`    |
+| `long long` | `long`   |
+| `LONG_PTR`  | `IntPtr` |
+| `LPARAM`    | `IntPtr` |
+| `LRESULT`   | `IntPtr` |
+| `WPARAM`    | `IntPtr` |
+| `UINT_PTR`  | `IntPtr` |
 
 ### Struct field types
 
@@ -111,7 +185,24 @@ value types rather than reference types.) Benefits of structs being pinnable inc
    native header file representations.
 
 Pinnable structs cannot have a `string` field, since `string` is a reference type. Instead, you can add a
-`string` *property* for convenience. See [PROCESSENTRY32][PROCESSENTRY32] for an example.
+`string` *property* for convenience. See [PROCESSENTRY32][PROCESSENTRY32] for an example of this for a
+fixed-size character array, or [BCRYPT_ALGORITHM_IDENTIFIER][BCRYPT_ALGORITHM_IDENTIFIER] for an example
+of this for a variable length, null-terminated string.
+
+When a struct has pointer types for fields, add an `[OfferIntPtrPropertyAccessors]` attribute to the struct
+and set the file's `Custom Tool` property to `MSBuild:GenerateCodeFromAttributes`. This causes `IntPtr`
+property accessors to these pointer fields to be automatically generated, making the struct accessible to
+languages that do not support pointers (e.g. VB.NET) or simply more convenient to callers with an `IntPtr`.
+If this file belongs to a Shared Project, the `Custom Tool` property is not available in the IDE and you
+will need to manually edit the .projitems file to add the item metadata, like this:
+
+```xml
+<Compile Include="$(MSBuildThisFileDirectory)YourLib+YourStruct.cs">
+  <Generator>MSBuild:GenerateCodeFromAttributes</Generator>
+</Compile>
+```
+
+Note that while the IDE exposes the property as `Custom Tool`, MSBuild represents it as `Generator`.
 
 ### Helper methods
 
@@ -209,6 +300,15 @@ this can be suppressed by adding this near the top of your file:
 #pragma warning disable SA1401 // Fields must be private
 ```
 
+### SafeHandles
+
+Safe handles should follow a few rules :
+* They should have an empty constructor that does nothing. (The marshaller will use this one when it need to create a SafeHandle)
+* They should have a constructor allowing to reuse pre-existing handles.
+* They should have a static field for each invalid values for easy access.
+
+A good example would be [`SafeHookHandle.cs`](src/User32.Desktop/User32+SafeHookHandle.cs).
+
 ## Self-service releases for contributors
 
 As soon as you send a pull request, a build is executed and updated NuGet packages
@@ -245,3 +345,4 @@ of the produced packages.
 [APISets8]: https://msdn.microsoft.com/en-us/library/windows/desktop/dn505783(v=vs.85).aspx
 
 [PROCESSENTRY32]: https://github.com/AArnott/pinvoke/blob/master/src/Kernel32.Desktop/Kernel32%2BPROCESSENTRY32.cs
+[BCRYPT_ALGORITHM_IDENTIFIER]: https://github.com/AArnott/pinvoke/blob/master/src/BCrypt.Shared/BCrypt%2BBCRYPT_ALGORITHM_IDENTIFIER.cs

@@ -6,7 +6,6 @@ namespace PInvoke
     using System;
     using System.Runtime.InteropServices;
     using System.Text;
-    using FILETIME = System.Runtime.InteropServices.ComTypes.FILETIME;
 
     /// <summary>
     /// Exported functions from the Kernel32.dll Windows library.
@@ -42,6 +41,8 @@ namespace PInvoke
         private const string api_ms_win_core_psapi_l1_1_0 = ApiSets.api_ms_win_core_psapi_l1_1_0;
         private const string api_ms_win_core_namedpipe_l1_2_0 = ApiSets.api_ms_win_core_namedpipe_l1_2_0;
         private const string api_ms_win_core_libraryloader_l1_1_1 = ApiSets.api_ms_win_core_libraryloader_l1_1_1;
+        private const string api_ms_win_core_sysinfo_l1_2_1 = ApiSets.api_ms_win_core_sysinfo_l1_2_1;
+        private const string api_ms_win_core_sysinfo_l1_2_0 = ApiSets.api_ms_win_core_sysinfo_l1_2_0;
 #else
         private const string api_ms_win_core_localization_l1_2_0 = nameof(Kernel32);
         private const string api_ms_win_core_processthreads_l1_1_1 = nameof(Kernel32);
@@ -54,6 +55,8 @@ namespace PInvoke
         private const string api_ms_win_core_psapi_l1_1_0 = nameof(Kernel32);
         private const string api_ms_win_core_namedpipe_l1_2_0 = nameof(Kernel32);
         private const string api_ms_win_core_libraryloader_l1_1_1 = nameof(Kernel32);
+        private const string api_ms_win_core_sysinfo_l1_2_1 = nameof(Kernel32);
+        private const string api_ms_win_core_sysinfo_l1_2_0 = nameof(Kernel32);
 #endif
 #pragma warning restore SA1303 // Const field names must begin with upper-case letter
 
@@ -89,7 +92,7 @@ namespace PInvoke
         /// If the function succeeds, the return value is a search handle used in a subsequent call to FindNextFile or FindClose, and the lpFindFileData parameter contains information about the first file or directory found.
         /// If the function fails or fails to locate files from the search string in the lpFileName parameter, the return value is INVALID_HANDLE_VALUE and the contents of lpFindFileData are indeterminate.To get extended error information, call the <see cref="GetLastError"/> function.
         /// </returns>
-        [DllImport(api_ms_win_core_file_l1_2_0)]
+        [DllImport(api_ms_win_core_file_l1_2_0, CharSet = CharSet.Unicode)]
         public static unsafe extern SafeFindFilesHandle FindFirstFileEx(string lpFileName, FINDEX_INFO_LEVELS fInfoLevelId, out WIN32_FIND_DATA lpFindFileData, FINDEX_SEARCH_OPS fSearchOp, void* lpSearchFilter, FindFirstFileExFlags dwAdditionalFlags);
 
         /// <summary>
@@ -360,7 +363,7 @@ namespace PInvoke
 
         /// <summary>
         /// Suspends the specified thread.
-        /// A 64-bit application can suspend a WOW64 thread using the <see cref="Wow64SuspendThread"/> function.
+        /// A 64-bit application can suspend a WOW64 thread using the Wow64SuspendThread function (desktop only).
         /// </summary>
         /// <param name="hThread">
         /// A handle to the thread that is to be suspended.
@@ -371,19 +374,6 @@ namespace PInvoke
         /// </returns>
         [DllImport(api_ms_win_core_processthreads_l1_1_1, SetLastError = true)]
         public static extern int SuspendThread(SafeObjectHandle hThread);
-
-        /// <summary>
-        /// Suspends the specified WOW64 thread.
-        /// </summary>
-        /// <param name="hThread">
-        /// A handle to the thread that is to be suspended.
-        /// The handle must have the THREAD_SUSPEND_RESUME access right. For more information, see Thread Security and Access Rights.
-        /// </param>
-        /// <returns>
-        /// If the function succeeds, the return value is the thread's previous suspend count; otherwise, it is (DWORD) -1. To get extended error information, use the <see cref="GetLastError"/> function.
-        /// </returns>
-        [DllImport(nameof(Kernel32), SetLastError = true)]
-        public static extern int Wow64SuspendThread(SafeObjectHandle hThread);
 
         /// <summary>
         /// Decrements a thread's suspend count. When the suspend count is decremented to zero, the execution of the thread is resumed.
@@ -461,6 +451,217 @@ namespace PInvoke
         public static extern bool FlushFileBuffers(SafeObjectHandle hFile);
 
         /// <summary>
+        /// Creates or opens a named or unnamed mutex object.
+        /// </summary>
+        /// <param name="lpMutexAttributes">
+        /// A pointer to a <see cref="SECURITY_ATTRIBUTES"/> structure. If this parameter is NULL, the handle cannot be inherited by child processes.
+        /// The <see cref="SECURITY_ATTRIBUTES.lpSecurityDescriptor"/> member of the structure specifies a security descriptor for the new mutex. If <paramref name="lpMutexAttributes"/> is NULL, the mutex gets a default security descriptor. The ACLs in the default security descriptor for a mutex come from the primary or impersonation token of the creator. For more information, see Synchronization Object Security and Access Rights.
+        /// </param>
+        /// <param name="bInitialOwner">
+        /// If this value is TRUE and the caller created the mutex, the calling thread obtains initial ownership of the mutex object. Otherwise, the calling thread does not obtain ownership of the mutex. To determine if the caller created the mutex, see the Return Values section.
+        /// </param>
+        /// <param name="lpName">
+        /// The name of the mutex object. The name is limited to MAX_PATH characters. Name comparison is case sensitive.
+        /// If lpName matches the name of an existing named mutex object, this function requests the MUTEX_ALL_ACCESS access right. In this case, the bInitialOwner parameter is ignored because it has already been set by the creating process. If the lpMutexAttributes parameter is not NULL, it determines whether the handle can be inherited, but its security-descriptor member is ignored.
+        /// If lpName is NULL, the mutex object is created without a name.
+        /// If lpName matches the name of an existing event, semaphore, waitable timer, job, or file-mapping object, the function fails and the GetLastError function returns ERROR_INVALID_HANDLE. This occurs because these objects share the same namespace.
+        /// The name can have a "Global\" or "Local\" prefix to explicitly create the object in the global or session namespace. The remainder of the name can contain any character except the backslash character (\). For more information, see Kernel Object Namespaces. Fast user switching is implemented using Terminal Services sessions. Kernel object names must follow the guidelines outlined for Terminal Services so that applications can support multiple users.
+        /// The object can be created in a private namespace. For more information, see Object Namespaces.
+        /// </param>
+        /// <returns>
+        /// If the function succeeds, the return value is a handle to the newly created mutex object.
+        /// If the function fails, the return value is NULL. To get extended error information, call GetLastError.
+        /// If the mutex is a named mutex and the object existed before this function call, the return value is a handle to the existing object, GetLastError returns ERROR_ALREADY_EXISTS, bInitialOwner is ignored, and the calling thread is not granted ownership. However, if the caller has limited access rights, the function will fail with ERROR_ACCESS_DENIED and the caller should use the OpenMutex function.
+        /// </returns>
+        [DllImport(api_ms_win_core_synch_l1_2_0, CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern unsafe SafeObjectHandle CreateMutex(
+            [Friendly(FriendlyFlags.Optional | FriendlyFlags.In)] SECURITY_ATTRIBUTES* lpMutexAttributes,
+            [MarshalAs(UnmanagedType.Bool)] bool bInitialOwner,
+            string lpName);
+
+        /// <summary>
+        /// Retrieves the address of an exported function or variable from the specified dynamic-link library (DLL).
+        /// </summary>
+        /// <param name="hModule">A handle to the DLL module that contains the function or variable. The LoadLibrary, LoadLibraryEx, or GetModuleHandle function returns this handle.</param>
+        /// <param name="procName">The function or variable name, or the function's ordinal value. If this parameter is an ordinal value, it must be in the low-order word; the high-order word must be zero.</param>
+        /// <returns>
+        /// If the function succeeds, the return value is the address of the exported function or variable.
+        /// If the function fails, the return value is NULL.To get extended error information, call <see cref="GetLastError"/>.
+        /// </returns>
+        /// <remarks>This function does not retrieve handles for modules that were loaded using the LoadLibraryExFlags.LOAD_LIBRARY_AS_DATAFILE flag.</remarks>
+        [DllImport(api_ms_win_core_libraryloader_l1_1_1, SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true)]
+        public static extern IntPtr GetProcAddress(SafeLibraryHandle hModule, string procName);
+
+        /// <summary>
+        /// Retrieves the number of milliseconds that have elapsed since the system was started, up to 49.7 days.
+        /// </summary>
+        /// <returns>The return value is the number of milliseconds that have elapsed since the system was started.</returns>
+        [DllImport(api_ms_win_core_sysinfo_l1_2_1)]
+        public static extern uint GetTickCount();
+
+        /// <summary>
+        /// Retrieves the number of milliseconds that have elapsed since the system was started.
+        /// </summary>
+        /// <returns>The number of milliseconds.</returns>
+        [DllImport(api_ms_win_core_sysinfo_l1_2_1)]
+        public static extern ulong GetTickCount64();
+
+        /// <summary>
+        ///     Sends a control code directly to a specified device driver, causing the corresponding device to perform the
+        ///     corresponding operation.
+        /// </summary>
+        /// <param name="hDevice">
+        ///     A handle to the device on which the operation is to be performed. The device is typically a
+        ///     volume, directory, file, or stream. To retrieve a device handle, use the CreateFile function.
+        /// </param>
+        /// <param name="dwIoControlCode">
+        ///     The control code for the operation. This value identifies the specific operation to be performed and the type of
+        ///     device on which to perform it.
+        ///     <para>
+        ///         For a list of the control codes, see Remarks. The documentation for each control code provides usage details
+        ///         for the <paramref name="inBuffer" />, <paramref name="nInBufferSize" />, <paramref name="outBuffer" />, and
+        ///         <paramref name="nOutBufferSize" /> parameters.
+        ///     </para>
+        /// </param>
+        /// <param name="inBuffer">
+        ///     A pointer to the input buffer that contains the data required to perform the operation. The format of this data
+        ///     depends on the value of the <paramref name="dwIoControlCode" /> parameter.
+        ///     <para>
+        ///         This parameter can be NULL if <paramref name="dwIoControlCode" /> specifies an operation that does not
+        ///         require input data.
+        ///     </para>
+        /// </param>
+        /// <param name="nInBufferSize">The size of the input buffer, in bytes.</param>
+        /// <param name="outBuffer">
+        ///     A pointer to the output buffer that is to receive the data returned by the operation. The format of this data
+        ///     depends on the value of the <paramref name="dwIoControlCode" /> parameter.
+        ///     <para>
+        ///         This parameter can be NULL if <paramref name="dwIoControlCode" /> specifies an operation that does not return
+        ///         data.
+        ///     </para>
+        /// </param>
+        /// <param name="nOutBufferSize">The size of the output buffer, in bytes.</param>
+        /// <param name="pBytesReturned">
+        ///     A pointer to a variable that receives the size of the data stored in the output buffer, in bytes.
+        ///     <para>
+        ///         If the output buffer is too small to receive any data, the call fails, <see cref="GetLastError" /> returns
+        ///         <see cref="Win32ErrorCode.ERROR_INSUFFICIENT_BUFFER" />, and lpBytesReturned is zero.
+        ///     </para>
+        ///     <para>
+        ///         If the output buffer is too small to hold all of the data but can hold some entries, some drivers will return
+        ///         as much data as fits. In this case, the call fails, <see cref="GetLastError" /> returns
+        ///         <see cref="Win32ErrorCode.ERROR_MORE_DATA" />, and lpBytesReturned indicates the amount of data received. Your
+        ///         application should call DeviceIoControl again with the same operation, specifying a new starting point.
+        ///     </para>
+        ///     <para>
+        ///         If <paramref name="lpOverlapped" /> is NULL, lpBytesReturned cannot be NULL. Even when an operation returns
+        ///         no output data and lpOutBuffer is NULL, DeviceIoControl makes use of lpBytesReturned. After such an operation,
+        ///         the value of lpBytesReturned is meaningless.
+        ///     </para>
+        ///     <para>
+        ///         If <paramref name="lpOverlapped" /> is not NULL, lpBytesReturned can be NULL. If this parameter is not NULL
+        ///         and the operation returns data, lpBytesReturned is meaningless until the overlapped operation has completed. To
+        ///         retrieve the number of bytes returned, call GetOverlappedResult. If hDevice is associated with an I/O
+        ///         completion port, you can retrieve the number of bytes returned by calling GetQueuedCompletionStatus.
+        ///     </para>
+        /// </param>
+        /// <param name="lpOverlapped">
+        ///     A pointer to an OVERLAPPED structure.
+        ///     <para>
+        ///         If hDevice was opened without specifying <see cref="CreateFileFlags.FILE_FLAG_OVERLAPPED" />, lpOverlapped is
+        ///         ignored.
+        ///     </para>
+        ///     <para>
+        ///         If hDevice was opened with the <see cref="CreateFileFlags.FILE_FLAG_OVERLAPPED" /> flag, the operation is
+        ///         performed as an overlapped (asynchronous) operation. In this case, lpOverlapped must point to a valid
+        ///         OVERLAPPED structure that contains a handle to an event object. Otherwise, the function fails in unpredictable
+        ///         ways.
+        ///     </para>
+        ///     <para>
+        ///         For overlapped operations, DeviceIoControl returns immediately, and the event object is signaled when the
+        ///         operation has been completed. Otherwise, the function does not return until the operation has been completed or
+        ///         an error occurs.
+        ///     </para>
+        /// </param>
+        /// <returns>
+        ///     If the operation completes successfully, the return value is nonzero.
+        ///     <para>
+        ///         If the operation fails or is pending, the return value is zero. To get extended error information, call
+        ///         <see cref="GetLastError" />.
+        ///     </para>
+        /// </returns>
+        [DllImport(api_ms_win_core_io_l1_1_1, SetLastError = true)]
+        public static extern unsafe bool DeviceIoControl(
+            SafeObjectHandle hDevice,
+            int dwIoControlCode,
+            void* inBuffer,
+            int nInBufferSize,
+            void* outBuffer,
+            int nOutBufferSize,
+            out int pBytesReturned,
+            OVERLAPPED* lpOverlapped);
+
+        /// <summary>
+        /// Retrieves the current system date and time. The system time is expressed in Coordinated Universal Time (UTC).
+        /// To retrieve the current system date and time in local time, use the GetLocalTime function.
+        /// </summary>
+        /// <param name="lpSystemTime">
+        /// A pointer to a SYSTEMTIME structure to receive the current system date and time.
+        /// The lpSystemTime parameter must not be NULL. Using NULL will result in an access violation.
+        /// </param>
+        [DllImport(api_ms_win_core_sysinfo_l1_2_0)]
+        public static extern unsafe void GetSystemTime([Friendly(FriendlyFlags.Out)] SYSTEMTIME* lpSystemTime);
+
+        /// <summary>
+        /// Sets the current system time and date. The system time is expressed in Coordinated Universal Time (UTC).
+        /// </summary>
+        /// <param name="lpSystemTime">
+        /// A pointer to a <see cref="SYSTEMTIME"/> structure that contains the new system date and time.
+        /// The wDayOfWeek member of the <see cref="SYSTEMTIME"/> structure is ignored.</param>
+        /// <returns>
+        ///     If the function succeeds, the return value is a nonzero value.
+        ///     <para>
+        ///         If the function fails, the return value is zero. To get extended error information, call
+        ///         <see cref="GetLastError" />.
+        ///     </para>
+        /// </returns>
+        [DllImport(api_ms_win_core_sysinfo_l1_2_0, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern unsafe bool SetSystemTime([Friendly(FriendlyFlags.In)] SYSTEMTIME* lpSystemTime);
+
+        /// <summary>Retrieves a handle that can be used to obtain a pointer to the first byte of the specified resource in memory.</summary>
+        /// <param name="hModule">
+        ///     A handle to the module whose executable file contains the resource. If hModule is
+        ///     <see cref="SafeLibraryHandle.Null" />, the system loads the resource from the module that was used to create the
+        ///     current process.
+        /// </param>
+        /// <param name="hResInfo">
+        ///     A handle to the resource to be loaded. This handle is returned by the
+        ///     FindResource or FindResourceEx function.
+        /// </param>
+        /// <returns>
+        ///     If the function succeeds, the return value is a handle to the data associated with the resource.
+        ///     <para>
+        ///         If the function fails, the return value is NULL. To get extended error information, call
+        ///         <see cref="GetLastError" />.
+        ///     </para>
+        /// </returns>
+        [DllImport(api_ms_win_core_libraryloader_l1_1_1, CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr LoadResource(SafeLibraryHandle hModule, IntPtr hResInfo);
+
+        /// <summary>Retrieves a pointer to the specified resource in memory.</summary>
+        /// <param name="hResData">
+        ///     A handle to the resource to be accessed. The <see cref="LoadResource" /> function returns this
+        ///     handle.
+        /// </param>
+        /// <returns>
+        ///     If the loaded resource is available, the return value is a pointer to the first byte of the resource;
+        ///     otherwise, it is NULL.
+        /// </returns>
+        [DllImport(api_ms_win_core_libraryloader_l1_1_1, CharSet = CharSet.Unicode, SetLastError = true)]
+        public static unsafe extern void* LockResource(IntPtr hResData);
+
+        /// <summary>
         ///     Closes a file search handle opened by the FindFirstFile, FindFirstFileEx, FindFirstFileNameW,
         ///     FindFirstFileNameTransactedW, FindFirstFileTransacted, FindFirstStreamTransactedW, or FindFirstStreamW functions.
         /// </summary>
@@ -474,5 +675,25 @@ namespace PInvoke
         /// </returns>
         [DllImport(api_ms_win_core_file_l1_2_0, SetLastError = true)]
         private static extern bool FindClose(IntPtr hFindFile);
+
+        /// <summary>
+        ///     Frees the loaded dynamic-link library (DLL) module and, if necessary, decrements its reference count. When the
+        ///     reference count reaches zero, the module is unloaded from the address space of the calling process and the handle
+        ///     is no longer valid.
+        /// </summary>
+        /// <param name="hModule">
+        ///     A handle to the loaded library module. The LoadLibrary, LoadLibraryEx, GetModuleHandle, or
+        ///     GetModuleHandleEx function returns this handle.
+        /// </param>
+        /// <returns>
+        ///     If the function succeeds, the return value is a nonzero value.
+        ///     <para>
+        ///         If the function fails, the return value is zero. To get extended error information, call
+        ///         <see cref="GetLastError" />.
+        ///     </para>
+        /// </returns>
+        [DllImport(api_ms_win_core_libraryloader_l1_1_1, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool FreeLibrary(IntPtr hModule);
     }
 }
